@@ -36,6 +36,8 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+> **Note:** `requirements.txt` pins `bcrypt<4.0` because `passlib 1.7.4` is not compatible with `bcrypt 4.x` (which removed `__about__` and added a strict 72-byte password limit). Do not upgrade `bcrypt` beyond 3.x until `passlib` itself is updated.
+
 #### Environment variables
 
 | Variable | Default | Description |
