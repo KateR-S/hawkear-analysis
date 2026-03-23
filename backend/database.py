@@ -1,8 +1,14 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+import os
+import pathlib
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./hawkear.db"
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+# Allow DATABASE_URL to be overridden by environment variable (e.g. on Railway with a volume)
+_default_db_path = pathlib.Path(__file__).resolve().parent / "hawkear.db"
+SQLALCHEMY_DATABASE_URL = os.environ.get(
+    "DATABASE_URL", f"sqlite:///{_default_db_path}"
+)
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
