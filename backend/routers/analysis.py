@@ -48,7 +48,7 @@ def get_full_analysis(touch_id: int, db: Session = Depends(get_db), current_user
                 "timing_content": pathlib.Path(p.timing_file_path).read_text(),
             })
     if not perf_list:
-        raise HTTPException(status_code=400, detail="No performances with timing data")
+        return {"performances": [], "trend": {}}
     return analyse_multiple_performances(perf_list)
 
 
