@@ -30,14 +30,14 @@ def test_register_duplicate_username(client):
 
 def test_login(client):
     client.post("/api/auth/register", json={"username": "carol", "email": "carol@example.com", "password": "pw123"})
-    resp = client.post("/api/auth/login", json={"username": "carol", "password": "pw123"})
+    resp = client.post("/api/auth/login", data={"username": "carol", "password": "pw123"})
     assert resp.status_code == 200
     assert "access_token" in resp.json()
 
 
 def test_login_wrong_password(client):
     client.post("/api/auth/register", json={"username": "dave", "email": "dave@example.com", "password": "pw123"})
-    resp = client.post("/api/auth/login", json={"username": "dave", "password": "wrongpw"})
+    resp = client.post("/api/auth/login", data={"username": "dave", "password": "wrongpw"})
     assert resp.status_code == 401
 
 
