@@ -14,6 +14,17 @@ log = structlog.get_logger(__name__)
 BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
 UPLOADS_DIR = BACKEND_DIR / "uploads"
 
+_FILE_HEAD_LINES = 5
+
+
+def _head_lines(text: str, n: int = _FILE_HEAD_LINES) -> str:
+    """Return the first *n* lines of *text* for debug logging."""
+    lines = text.splitlines()
+    head = "\n".join(lines[:n])
+    if len(lines) > n:
+        head += f"\n… ({len(lines) - n} more lines)"
+    return head
+
 
 def get_touch_or_404(touch_id: int, user: models.User, db: Session) -> models.Touch:
     touch = db.query(models.Touch).filter(
@@ -38,7 +49,14 @@ def get_performance_or_404(performance_id: int, touch_id: int, db: Session) -> m
 def list_performances(touch_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     get_touch_or_404(touch_id, current_user, db)
     perfs = db.query(models.Performance).filter(models.Performance.touch_id == touch_id).order_by(models.Performance.order_index).all()
-    log.debug("performances_listed", touch_id=touch_id, count=len(perfs), user_id=current_user.id)
+    log.debug(
+        "performances_listed",
+        touch_id=touch_id,
+        count=len(perfs),
+        user_id=current_user.id,
+        performance_ids=[p.id for p in perfs],
+        labels=[p.label for p in perfs],
+    )
     return perfs
 
 
@@ -52,12 +70,29 @@ async def create_performance(
     current_user: models.User = Depends(get_current_user),
 ):
     get_touch_or_404(touch_id, current_user, db)
-    log.debug("performance_upload_started", touch_id=touch_id, label=label, filename=file.filename, user_id=current_user.id)
+    log.debug(
+        "performance_upload_started",
+        touch_id=touch_id,
+        label=label,
+        order_index=order_index,
+        filename=file.filename,
+        content_type=file.content_type,
+        user_id=current_user.id,
+    )
     perf = models.Performance(touch_id=touch_id, label=label, order_index=order_index)
     db.add(perf)
     db.commit()
     db.refresh(perf)
     content = await file.read()
+    text = content.decode("utf-8", errors="replace")
+    log.debug(
+        "timing_file_head",
+        touch_id=touch_id,
+        performance_id=perf.id,
+        filename=file.filename,
+        total_lines=len(text.splitlines()),
+        head=_head_lines(text),
+    )
     timings_dir = UPLOADS_DIR / "timings" / str(touch_id)
     timings_dir.mkdir(parents=True, exist_ok=True)
     file_path = timings_dir / f"{perf.id}.csv"
@@ -80,6 +115,7 @@ def update_performance(
     get_touch_or_404(touch_id, current_user, db)
     perf = get_performance_or_404(performance_id, touch_id, db)
     updated_fields = perf_in.model_dump(exclude_unset=True)
+    log.debug("update_performance_request", performance_id=performance_id, touch_id=touch_id, user_id=current_user.id, updated_fields=updated_fields)
     for field, value in updated_fields.items():
         setattr(perf, field, value)
     db.commit()
@@ -110,6 +146,12 @@ def reorder_performances(
     current_user: models.User = Depends(get_current_user),
 ):
     get_touch_or_404(touch_id, current_user, db)
+    log.debug(
+        "reorder_performances_request",
+        touch_id=touch_id,
+        user_id=current_user.id,
+        order=[{"id": r.id, "order_index": r.order_index} for r in reorders],
+    )
     updated = []
     for item in reorders:
         perf = get_performance_or_404(item.id, touch_id, db)
