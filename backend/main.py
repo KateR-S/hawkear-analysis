@@ -3,9 +3,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import structlog
 
 from .database import engine, Base
+from .logging_config import configure_logging
 from .routers import auth, touches, performances, analysis
+
+configure_logging()
+log = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
@@ -13,7 +18,9 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     uploads_dir = pathlib.Path(__file__).resolve().parent / "uploads"
     uploads_dir.mkdir(exist_ok=True)
+    log.info("startup_complete", uploads_dir=str(uploads_dir))
     yield
+    log.info("shutdown")
 
 
 app = FastAPI(title="Hawkear Analysis API", lifespan=lifespan)

@@ -2,12 +2,14 @@ import pathlib
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from typing import List
+import structlog
 
 from .. import models, schemas
 from ..auth import get_current_user
 from ..database import get_db
 
 router = APIRouter(tags=["performances"])
+log = structlog.get_logger(__name__)
 
 BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
 UPLOADS_DIR = BACKEND_DIR / "uploads"
@@ -35,7 +37,9 @@ def get_performance_or_404(performance_id: int, touch_id: int, db: Session) -> m
 @router.get("/api/touches/{touch_id}/performances", response_model=list[schemas.PerformanceRead])
 def list_performances(touch_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     get_touch_or_404(touch_id, current_user, db)
-    return db.query(models.Performance).filter(models.Performance.touch_id == touch_id).order_by(models.Performance.order_index).all()
+    perfs = db.query(models.Performance).filter(models.Performance.touch_id == touch_id).order_by(models.Performance.order_index).all()
+    log.debug("performances_listed", touch_id=touch_id, count=len(perfs), user_id=current_user.id)
+    return perfs
 
 
 @router.post("/api/touches/{touch_id}/performances", response_model=schemas.PerformanceRead, status_code=status.HTTP_201_CREATED)
@@ -48,6 +52,7 @@ async def create_performance(
     current_user: models.User = Depends(get_current_user),
 ):
     get_touch_or_404(touch_id, current_user, db)
+    log.debug("performance_upload_started", touch_id=touch_id, label=label, filename=file.filename, user_id=current_user.id)
     perf = models.Performance(touch_id=touch_id, label=label, order_index=order_index)
     db.add(perf)
     db.commit()
@@ -60,6 +65,7 @@ async def create_performance(
     perf.timing_file_path = str(file_path)
     db.commit()
     db.refresh(perf)
+    log.info("performance_created", performance_id=perf.id, touch_id=touch_id, label=label, user_id=current_user.id)
     return perf
 
 
@@ -73,10 +79,12 @@ def update_performance(
 ):
     get_touch_or_404(touch_id, current_user, db)
     perf = get_performance_or_404(performance_id, touch_id, db)
-    for field, value in perf_in.model_dump(exclude_unset=True).items():
+    updated_fields = perf_in.model_dump(exclude_unset=True)
+    for field, value in updated_fields.items():
         setattr(perf, field, value)
     db.commit()
     db.refresh(perf)
+    log.info("performance_updated", performance_id=performance_id, touch_id=touch_id, fields=list(updated_fields.keys()), user_id=current_user.id)
     return perf
 
 
@@ -91,6 +99,7 @@ def delete_performance(
     perf = get_performance_or_404(performance_id, touch_id, db)
     db.delete(perf)
     db.commit()
+    log.info("performance_deleted", performance_id=performance_id, touch_id=touch_id, user_id=current_user.id)
 
 
 @router.patch("/api/touches/{touch_id}/performances/reorder", response_model=list[schemas.PerformanceRead])
@@ -109,4 +118,5 @@ def reorder_performances(
     db.commit()
     for perf in updated:
         db.refresh(perf)
+    log.info("performances_reordered", touch_id=touch_id, count=len(updated), user_id=current_user.id)
     return updated
