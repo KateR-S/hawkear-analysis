@@ -18,6 +18,10 @@ def test_parse_bell_char_digits():
 def test_parse_bell_char_E_T():
     assert parse_bell_char("E") == 11
     assert parse_bell_char("T") == 12
+    assert parse_bell_char("A") == 13
+    assert parse_bell_char("B") == 14
+    assert parse_bell_char("C") == 15
+    assert parse_bell_char("D") == 16
 
 
 def test_parse_bell_char_all_valid():

@@ -1,4 +1,4 @@
-BELL_CHARS = "1234567890ET"  # index+1 = bell number
+BELL_CHARS = "1234567890ETABCD"  # index+1 = bell number
 
 
 def parse_bell_char(c: str) -> int:
